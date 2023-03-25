@@ -43,16 +43,6 @@ class stats():
         ret=False #assumme worst
         loss_lbls, loss_varieties,err_rate_labels,err_rate_varieties=self.calc_curr_loss(btch_num)
         
-<<<<<<< HEAD
-        if return_error_rate:
-            if (self.best_err_rate_labels is None) or(self.best_err_rate_labels>err_rate_labels):
-                self.best_err_rate_labels=err_rate_labels
-                ret= True
-        else:
-            if (self.best_loss_labels is None) or(self.best_loss_labels>loss_lbls):
-                self.best_loss_labels=loss_lbls
-                ret= True
-=======
         # if return_error_rate:
         if (self.best_err_rate_labels is None) or(self.best_err_rate_labels>err_rate_labels):
             self.best_err_rate_labels=err_rate_labels
@@ -61,7 +51,6 @@ class stats():
         #     if (self.best_loss_labels is None) or(self.best_loss_labels>loss_lbls):
         #         self.best_loss_labels=loss_lbls
         #         ret= True
->>>>>>> ported multihead pytorch model to fastai
                 
         self.reset()
         return ret
@@ -72,19 +61,13 @@ class stats():
         
     def show(self,btch_num):
         '''
-<<<<<<< HEAD
-        prints out losses every CFG.print_freq batch
-=======
         prints out losses
->>>>>>> ported multihead pytorch model to fastai
         '''
         loss_lbls, loss_varieties,err_rate_labels,err_rate_varieties=self.calc_curr_loss(btch_num)
         print(f'{self.kind}:err_rate_labels={err_rate_labels:.2f},   label_loss={loss_lbls:.2f},  err_rate_varieties={err_rate_varieties:.2f} varieties_loss={loss_varieties:.2f}', end='\r', flush=True)
 #--------------------------
 #Multi Head Model (2 output params)
 #--------------------------  
-<<<<<<< HEAD
-=======
 import timm
 import torch.nn as nn
 import torch.nn.functional as F
@@ -113,7 +96,6 @@ class DiseaseAndTypeClassifier(nn.Module):
         variety=self.l2(x)  #variety
         return label,variety
 
->>>>>>> ported multihead pytorch model to fastai
 
 
 #--------------------------
@@ -143,11 +125,7 @@ class Learner():
         self.trn_stats=stats()
         self.val_stats=stats('valid')
         self.lrs=[]  #used for verifing 1 cycle performence
-<<<<<<< HEAD
-        self.cfg=self.m.m.default_cfg
-=======
         self.architecture=self.m.m.default_cfg['architecture']
->>>>>>> ported multihead pytorch model to fastai
         
     def learn(self,trn_dl,val_dl, num_epochs): 
         self.lrs=[]
@@ -202,13 +180,8 @@ class Learner():
                 # forward + backward + optimize
                 pred_lbls,pred_varieties = self.m(imgs)             
                 loss_labels , loss_varieties = self.criterion(pred_lbls,pred_varieties, lbls,varietys)
-<<<<<<< HEAD
-
-                #save info                                                                                                             
-=======
                 
                 #save loss
->>>>>>> ported multihead pytorch model to fastai
                 self.val_stats.add(loss_labels.item(),loss_varieties.item(),error_rate(pred_lbls,lbls),error_rate(pred_varieties,varietys))
 
                 self.val_stats.show(i)
@@ -216,10 +189,6 @@ class Learner():
             if(self.val_stats.is_best_loss(i)):
                 print(f'\nEpoch {epoch}found and saving better model')
                  # save the model's weights and biases 
-<<<<<<< HEAD
-                torch.save(self.m.state_dict(), f"./BEST_{self.cfg['architecture']}.pth")               
-            print()
-=======
                 torch.save(self.m.state_dict(), f"./BEST_{self.architecture}.pth")               
             print()
 
@@ -251,7 +220,6 @@ def get_Learner(model_name, min_lr,max_lr,num_epochs,trn_dl,momentum):
     #create the learner that will train the model
     return Learner(m1,scheduler,optimizer)
 
->>>>>>> ported multihead pytorch model to fastai
 #--------------------------
 #metrics
 #--------------------------          
@@ -310,15 +278,12 @@ class DiseaseAndTypeClassifierLoss(nn.Module):
         loss_varieties=criterion(pred_varieties, correct_varieties)
     
         return loss_labels , loss_varieties
-<<<<<<< HEAD
-=======
     
     # def __call__(self,preds, correct_labels,correct_varieties):
     #     #this is here strictly for FASTAI learner, it expects a 1 number loss (not a tuple)
     #     l1,l2=self.forward(preds[0],preds[1], correct_labels,correct_varieties)
     #     return l1+l2
         
->>>>>>> ported multihead pytorch model to fastai
 #--------------------------
 #dataset stuff
 #--------------------------
@@ -374,18 +339,11 @@ class MultiTaskDatasetTrain(Dataset):
     '''
     Use for train and validation datasets, use when you know both the label and variety               
     '''
-<<<<<<< HEAD
-    def __init__(self,img_dir,*,df=None,transforms=None, target_transform=None):
-        '''
-        df: contains info to build train and validation datasets
-        img_dir: where images are ex "./data/train_images"
-=======
     def __init__(self,img_dir,mpr,*,df=None,transforms=None, target_transform=None):
         '''
         df: contains info to build train OR validation datasets
         img_dir: where images are ex "./data/train_images"
         mpr:forward and reverse map labels and varieties
->>>>>>> ported multihead pytorch model to fastai
         transforms: list of transforms to apply      
         '''
         super().__init__()
@@ -397,10 +355,6 @@ class MultiTaskDatasetTrain(Dataset):
             self.files.append(os.path.join(img_dir,label,image_id))
         assert len(self.files)==len(self.labels) and len(self.files)==len(self.varietys), f"files,labels and variety must be same length"
 
-<<<<<<< HEAD
-        mpr=mapper(df)
-=======
->>>>>>> ported multihead pytorch model to fastai
         #now convert the labels and varieties to numbers
         self.labels=list(map(mpr.label_to_i.get,self.labels))
         self.varietys=list(map(mpr.variety_to_i.get,self.varietys))
