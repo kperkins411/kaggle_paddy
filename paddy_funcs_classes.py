@@ -7,6 +7,50 @@ import torchvision.transforms as transforms
 import torch
 import pandas as pd
 import torch.optim as optim
+
+#--------------------------
+#configuration
+#-------------------------- 
+# from https://www.kaggle.com/code/hinepo/transfer-learning-with-timm-models-and-pytorch
+class PROJECT_CFG:
+    train_path='./data/train_images'   #get train and validation Datasets from here
+    test_path='./data/test_images'     #get test set from here
+    csv_path='./data/train.csv'
+    
+    ### split train and validation sets
+    split_fraction = 0.2
+
+    ##dataloader
+    drop_last=False
+    
+    ### model
+    model_name = 'resnet26d'#'convnext_small_in22k' # ## 'resnet50' # 'resnet34', 'resnet200d', 'efficientnet_b1_pruned', 'efficientnetv2_m', efficientnet_b7 ...  
+
+    num_classes_in_output_layer=512
+    #get a subset of data to work on(start with True until all experiments done
+    #and want to train on entire dataset
+    subsample_data=False
+    BATCH_SIZE= 8 if subsample_data else 32
+    N_EPOCHS = 4
+    # print_freq = 2 
+
+    momentum=0.9
+    
+    ### set only one to True
+    save_best_loss = False
+    save_best_accuracy = True
+
+    ### optimizer
+    # optimizer = 'adam'
+    # optimizer = 'adamw'
+    optimizer = 'rmsprop'  
+    # LEARNING_RATE=0.00001
+    LEARNING_RATE_MIN=0.004
+    LEARNING_RATE_MAX=0.01
+
+    random_seed = 42
+
+
 #--------------------------
 #learner statistics
 #-------------------------- 
@@ -23,6 +67,7 @@ class stats():
         self.best_loss_varieties = None
         self.best_err_rate_labels =None
         self.best_err_rate_varieties =None
+        self.PROJECT_CFG=PROJECT_CFG()
             
     def reset(self):
         self.running_loss_labels = 0.0
@@ -36,21 +81,21 @@ class stats():
         self.running_err_rate_labels+=err_rate_labels
         self.running_err_rate_varieties+=err_rate_varieties
         
-    def is_best_loss(self,btch_num, return_error_rate=True):
+    def is_best_loss(self,btch_num):
         '''
         call at end of every epoch to see if we should save model
         '''
         ret=False #assumme worst
         loss_lbls, loss_varieties,err_rate_labels,err_rate_varieties=self.calc_curr_loss(btch_num)
         
-        # if return_error_rate:
-        if (self.best_err_rate_labels is None) or(self.best_err_rate_labels>err_rate_labels):
-            self.best_err_rate_labels=err_rate_labels
-            ret= True
-        # else:
-        #     if (self.best_loss_labels is None) or(self.best_loss_labels>loss_lbls):
-        #         self.best_loss_labels=loss_lbls
-        #         ret= True
+        if self.PROJECT_CFG.save_best_accuracy:
+            if (self.best_err_rate_labels is None) or(self.best_err_rate_labels>err_rate_labels):
+                self.best_err_rate_labels=err_rate_labels
+                ret= True
+        else:
+            if (self.best_loss_labels is None) or(self.best_loss_labels>loss_lbls):
+                self.best_loss_labels=loss_lbls
+                ret= True
                 
         self.reset()
         return ret
@@ -85,8 +130,6 @@ class DiseaseAndTypeClassifier(nn.Module):
         '''
         super().__init__()
         self.m = tmodel
-        #add an extra layer
-        # self.m.fc=nn.Linear(in_features=self.m.get_classifier().in_features,out_features=512, bias=False)
         self.l1=nn.Linear(in_features=self.m.get_classifier().out_features, out_features=10, bias=False)  #rice type
         self.l2=nn.Linear(in_features=self.m.get_classifier().out_features, out_features=10, bias=False)  #disease
         
@@ -192,10 +235,10 @@ class Learner():
                 torch.save(self.m.state_dict(), f"./BEST_{self.architecture}.pth")               
             print()
 
-            
-def get_Learner(model_name, min_lr,max_lr,num_epochs,trn_dl,momentum):
+
+def get_Learner(model_name, min_lr,max_lr,num_epochs,trn_dl,num_output_classes,momentum):
     '''
-    gets a timm model and wraps in a  DiseaseAndTypeClassifier class
+    gets a timm model and wraps in a  DiseaseAndTypeClassifier class, use this if using pur pytorch
     min_lr: minimum learning rate for OneCycleLR
     max_lr: maximum learning rate for OneCycleLR
     num_epochs: how many epochs to train for
@@ -203,7 +246,7 @@ def get_Learner(model_name, min_lr,max_lr,num_epochs,trn_dl,momentum):
     cfg:
     '''
     #create the timm model
-    tmodel=timm.create_model(model_name, pretrained=True, num_classes=512,global_pool='catavgmax') 
+    tmodel=timm.create_model(model_name, pretrained=True, num_classes=num_output_classes,global_pool='catavgmax') 
 
     #and pass it to DiseaseAndTypeClassifier
     m1=DiseaseAndTypeClassifier(tmodel)
