@@ -137,7 +137,9 @@ class DiseaseAndTypeClassifier(nn.Module):
         x=F.relu(self.m(x)) 
         label=self.l1(x)  #disease type
         variety=self.l2(x)  #variety
-        return label,variety
+        
+        #return as tuple
+        return (label,variety)
 
 
 
@@ -191,15 +193,15 @@ class Learner():
             self.optimizer.zero_grad()
  
             # forward + backward + optimize
-            pred_lbls,pred_varieties = self.m(imgs)             
-            loss_labels , loss_varieties = self.criterion(pred_lbls,pred_varieties, lbls,varietys)
+            preds = self.m(imgs)             
+            loss_labels , loss_varieties = self.criterion(preds, lbls,varietys)
             
             #see https://stackoverflow.com/questions/46774641/what-does-the-parameter-retain-graph-mean-in-the-variables-backward-method
             loss_labels.backward(retain_graph=True)
             loss_varieties.backward()
 
             #save info                                                                                                             
-            self.trn_stats.add(loss_labels.item(),loss_varieties.item(),error_rate(pred_lbls,lbls),error_rate(pred_varieties,varietys))
+            self.trn_stats.add(loss_labels.item(),loss_varieties.item(),error_rate(preds[0],lbls),error_rate(preds[1],varietys))
   
             #adjust weights
             self.optimizer.step()
@@ -221,11 +223,11 @@ class Learner():
                 imgs,lbls,varietys = data[0].to(self.device),data[1].to(self.device),data[2].to(self.device)
 
                 # forward + backward + optimize
-                pred_lbls,pred_varieties = self.m(imgs)             
-                loss_labels , loss_varieties = self.criterion(pred_lbls,pred_varieties, lbls,varietys)
+                preds = self.m(imgs)             
+                loss_labels , loss_varieties = self.criterion(preds, lbls,varietys)
                 
                 #save loss
-                self.val_stats.add(loss_labels.item(),loss_varieties.item(),error_rate(pred_lbls,lbls),error_rate(pred_varieties,varietys))
+                self.val_stats.add(loss_labels.item(),loss_varieties.item(),error_rate(preds[0],lbls),error_rate(preds[1],varietys))
 
                 self.val_stats.show(i)
 
@@ -313,7 +315,10 @@ class DiseaseAndTypeClassifierLoss(nn.Module):
     def __init__(self):
         super(DiseaseAndTypeClassifierLoss, self).__init__()
 
-    def forward(self, pred_labels,pred_varieties, correct_labels,correct_varieties):
+    def forward(self,preds, correct_labels,correct_varieties):
+        #split out the preds
+        pred_labels,pred_varieties=preds
+        
         #using crossentropy loss
         criterion = nn.CrossEntropyLoss()
         
@@ -322,10 +327,9 @@ class DiseaseAndTypeClassifierLoss(nn.Module):
     
         return loss_labels , loss_varieties
     
-    # def __call__(self,preds, correct_labels,correct_varieties):
-    #     #this is here strictly for FASTAI learner, it expects a 1 number loss (not a tuple)
-    #     l1,l2=self.forward(preds[0],preds[1], correct_labels,correct_varieties)
-    #     return l1+l2
+    def __call__(self,preds, correct_labels,correct_varieties):
+        #this is here strictly for FASTAI learner, it expects a 1 number loss (not a tuple)
+        return self.forward(preds, correct_labels,correct_varieties)
         
 #--------------------------
 #dataset stuff
