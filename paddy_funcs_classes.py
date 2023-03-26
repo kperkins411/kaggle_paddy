@@ -31,21 +31,21 @@ class PROJECT_CFG:
     #and want to train on entire dataset
     subsample_data=False
     BATCH_SIZE= 8 if subsample_data else 32
-    N_EPOCHS = 4
-    # print_freq = 2 
+    N_EPOCHS = 10
+    print_freq = 4 
 
     momentum=0.9
     
     ### set only one to True
-    save_best_loss = False
-    save_best_accuracy = True
+    save_best_loss = True
+    save_best_accuracy = False
 
     ### optimizer
     # optimizer = 'adam'
     # optimizer = 'adamw'
     optimizer = 'rmsprop'  
     # LEARNING_RATE=0.00001
-    LEARNING_RATE_MIN=0.004
+    LEARNING_RATE_MIN=0.003
     LEARNING_RATE_MAX=0.01
 
     random_seed = 42
@@ -108,8 +108,9 @@ class stats():
         '''
         prints out losses
         '''
-        loss_lbls, loss_varieties,err_rate_labels,err_rate_varieties=self.calc_curr_loss(btch_num)
-        print(f'{self.kind}:err_rate_labels={err_rate_labels:.2f},   label_loss={loss_lbls:.2f},  err_rate_varieties={err_rate_varieties:.2f} varieties_loss={loss_varieties:.2f}', end='\r', flush=True)
+        if(btch_num%self.PROJECT_CFG.print_freq == 0):
+            loss_lbls, loss_varieties,err_rate_labels,err_rate_varieties=self.calc_curr_loss(btch_num)
+            print(f'{self.kind}:label accuracy={1-err_rate_labels:.2f},   labelloss={loss_lbls:.2f},  variety accuracy={1-err_rate_varieties:.2f} variety loss={loss_varieties:.2f}', end='\r', flush=True)
 #--------------------------
 #Multi Head Model (2 output params)
 #--------------------------  
@@ -141,8 +142,32 @@ class DiseaseAndTypeClassifier(nn.Module):
         #return as tuple
         return (label,variety)
 
+def set_fine_tune(m1, train_these_layers):
+    '''
+    set all layers requires_grad=False in model unless 
+    layer name is in train these layers
+    ex.
+    set_fine_tune(m1,['m.fc.weight','m.fc.bias','l1.weight','l2.weight'])   
+    '''
+    set_all_layer_grad(m1,False)
+    
+    for name, param in m1.named_parameters():
+        for ln in train_these_layers:
+            if ln in name:
+                param.requires_grad=True
+                # print(name)
+                continue
 
-
+def set_all_layer_grad(m1,grad=True):
+    '''
+    set all layers equires_grad=grad
+    layer name is in train these layers
+    ex.
+    set_fine_tune(m1,['m.fc.weight','m.fc.bias','l1.weight','l2.weight'])   
+    '''
+    for name, param in m1.named_parameters():
+        param.requires_grad=grad
+  
 #--------------------------
 #Simple Learner class
 #--------------------------  
@@ -238,7 +263,7 @@ class Learner():
             print()
 
 
-def get_Learner(model_name, min_lr,max_lr,num_epochs,trn_dl,num_output_classes,momentum):
+def get_Learner(model_name, min_lr,max_lr,num_epochs,trn_dl,num_output_classes,momentum,load_best_model=False):
     '''
     gets a timm model and wraps in a  DiseaseAndTypeClassifier class, use this if using pur pytorch
     min_lr: minimum learning rate for OneCycleLR
@@ -252,7 +277,10 @@ def get_Learner(model_name, min_lr,max_lr,num_epochs,trn_dl,num_output_classes,m
 
     #and pass it to DiseaseAndTypeClassifier
     m1=DiseaseAndTypeClassifier(tmodel)
-
+    
+    if(load_best_model):
+        m1.load_state_dict(torch.load(f"./BEST_{m1.m.default_cfg['architecture']}.pth"))  
+     
     #create optimizer
     optimizer=optim.SGD(m1.parameters(),min_lr, momentum=momentum)
 
@@ -470,3 +498,51 @@ def get_transforms(cfg):
     ])
     
     return train_transforms, val_transforms
+
+#--------------------------
+#submission
+#--------------------------
+def generate_submission(m, df):
+    '''
+    m the model
+    '''
+    from torch.utils.data import DataLoader
+    
+    CFG=PROJECT_CFG()
+    mpr=mapper(df)
+    
+    import timm
+    cfg=timm.data.resolve_data_config({}, model=CFG.model_name, verbose=True)
+    _, val_transforms=get_transforms(cfg)
+    
+    #generate sorted list of files
+    test_dataset=MultiTaskDatasetTest(CFG.test_path, transforms=val_transforms) 
+    test_dataset.files.sort()
+
+    #generate a non_shuffle dataloader
+    tst_dl=DataLoader(test_dataset, batch_size=CFG.BATCH_SIZE, shuffle=False, num_workers=1,drop_last=False)
+
+    #where is the model
+    device = next(m.parameters()).device.type
+
+    #get model predictions
+    labels=[]
+    for imgs in tst_dl:
+        imgs = imgs.to(device)
+
+        # forward + backward + optimize
+        pred_lbls,_ = m(imgs)
+
+        #get the max index
+        pred_lbls=torch.argmax(pred_lbls,dim=1).tolist()
+        labels=labels+pred_lbls   
+
+    #convert indexes to labels
+    new_labels=[mpr.i_to_label[i] for i in labels]
+    # get a list of files
+    files=[fle.split('/')[-1] for fle in test_dataset.files]   
+
+    with open('./submission.csv','w') as fle:
+        fle.write('image_id,label')
+        for i in range(len(files)):
+            fle.write('\n'+files[i]+','+new_labels[i])

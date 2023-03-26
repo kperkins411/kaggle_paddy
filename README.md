@@ -1,4 +1,5 @@
 # kaggle_paddy competition
+https://www.kaggle.com/competitions/paddy-disease-classification
 
 2 solutions, 1 using pytorch and one using fastAI, both share the same mutihead model, both use timm vision models.
 
